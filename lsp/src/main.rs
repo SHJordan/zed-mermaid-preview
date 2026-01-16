@@ -3,6 +3,8 @@ use log::{debug, error, info, warn};
 use lsp_server::{Connection, Message, Request, RequestId, Response, ResponseError};
 use lsp_types::*;
 use serde_json::json;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::{
     collections::HashMap,
     fs,
@@ -11,8 +13,6 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use url::Url;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 
 mod render;
 
@@ -24,7 +24,9 @@ const MERMAID_SOURCE_COMMENT_SUFFIX: &str = "-->";
 const MERMAID_MEDIA_DIR: &str = ".mermaid";
 const MERMAID_CACHE_DIR: &str = ".cache";
 const MERMAID_FILE_EXTENSION: &str = ".mmd";
+#[allow(dead_code)]
 const MERMAID_FENCE_START: &str = "```mermaid";
+#[allow(dead_code)]
 const MERMAID_FENCE_END: &str = "```";
 
 static SVG_COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -61,6 +63,7 @@ fn send_warning_notification(connection: &Connection, message: &str) {
 }
 
 // Strip mermaid wrapper (```mermaid ... ```) from code if present
+#[allow(dead_code)]
 fn strip_mermaid_wrapper(code: &str) -> String {
     let trimmed = code.trim();
     let lines: Vec<&str> = trimmed.lines().collect();
@@ -70,7 +73,10 @@ fn strip_mermaid_wrapper(code: &str) -> String {
     }
 
     let has_start = lines[0].trim().starts_with(MERMAID_FENCE_START);
-    let has_end = lines.last().map(|l| l.trim() == MERMAID_FENCE_END).unwrap_or(false);
+    let has_end = lines
+        .last()
+        .map(|l| l.trim() == MERMAID_FENCE_END)
+        .unwrap_or(false);
 
     if has_start && has_end && lines.len() >= 2 {
         return lines[1..lines.len() - 1].join("\n");
@@ -80,6 +86,7 @@ fn strip_mermaid_wrapper(code: &str) -> String {
 }
 
 // Find the most recent matching source file when the referenced file doesn't exist
+#[allow(dead_code)]
 fn find_most_recent_source_file(missing_path: &Path, _uri: &str) -> Option<String> {
     debug!("Searching for recent source file matching pattern");
 
@@ -96,7 +103,9 @@ fn find_most_recent_source_file(missing_path: &Path, _uri: &str) -> Option<Strin
             let pattern = format!("{}_{}_{}", base_name, "*", diagram_num);
 
             // Get the directory to search in
-            let search_dir = missing_path.parent().unwrap_or_else(|| Path::new(MERMAID_MEDIA_DIR));
+            let search_dir = missing_path
+                .parent()
+                .unwrap_or_else(|| Path::new(MERMAID_MEDIA_DIR));
 
             debug!("Searching in {:?} for pattern {}", search_dir, pattern);
 
@@ -108,7 +117,9 @@ fn find_most_recent_source_file(missing_path: &Path, _uri: &str) -> Option<Strin
                     let path = entry.path();
                     if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                         // Check if it matches our pattern
-                        if name.starts_with(&format!("{}_{}", base_name, diagram_num)) && name.ends_with(&format!(".{}", extension)) {
+                        if name.starts_with(&format!("{}_{}", base_name, diagram_num))
+                            && name.ends_with(&format!(".{}", extension))
+                        {
                             // Get modification time
                             if let Ok(metadata) = entry.metadata() {
                                 if let Ok(modified) = metadata.modified() {
@@ -152,8 +163,8 @@ fn main() -> Result<()> {
     if let Ok(file) = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open(&log_file) {
-
+        .open(&log_file)
+    {
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
             .format_timestamp_millis()
             .target(env_logger::Target::Pipe(Box::new(file)))
@@ -409,17 +420,26 @@ fn get_code_actions(
 
     // Count total mermaid blocks in the document - O(1) operation
     let total_blocks = count_mermaid_blocks(content);
-    info!("Found {} mermaid blocks, cursor at line {}", total_blocks, cursor.line);
+    info!(
+        "Found {} mermaid blocks, cursor at line {}",
+        total_blocks, cursor.line
+    );
 
     // Render All - pre-compute edit for Zed compatibility
     if total_blocks > 1 {
-        info!("Adding Render All action for {} diagrams (pre-computing edit)", total_blocks);
+        info!(
+            "Adding Render All action for {} diagrams (pre-computing edit)",
+            total_blocks
+        );
 
         // Pre-compute the WorkspaceEdit
         info!("Calling render_all_diagrams_content...");
         match render_all_diagrams_content(&uri, content, Some(_connection)) {
             Ok(changes) => {
-                info!("Successfully rendered all diagrams, got {} file changes", changes.len());
+                info!(
+                    "Successfully rendered all diagrams, got {} file changes",
+                    changes.len()
+                );
                 let edit = WorkspaceEdit {
                     changes: Some(changes),
                     document_changes: None,
@@ -430,7 +450,7 @@ fn get_code_actions(
                     title: format!("Render All {} Mermaid Diagrams", total_blocks),
                     kind: Some(CodeActionKind::REFACTOR_REWRITE),
                     diagnostics: None,
-                    edit: Some(edit),  // Direct edit, no command
+                    edit: Some(edit), // Direct edit, no command
                     command: None,
                     is_preferred: Some(true),
                     disabled: None,
@@ -449,7 +469,10 @@ fn get_code_actions(
     // Edit All - pre-compute edit for Zed compatibility
     let rendered_count = count_rendered_blocks(content);
     if rendered_count > 1 {
-        debug!("Adding Edit All action for {} rendered diagrams (pre-computing edit)", rendered_count);
+        debug!(
+            "Adding Edit All action for {} rendered diagrams (pre-computing edit)",
+            rendered_count
+        );
 
         // Pre-compute the WorkspaceEdit
         match edit_all_sources_content(&uri, content) {
@@ -464,7 +487,7 @@ fn get_code_actions(
                     title: format!("Edit All {} Mermaid Sources", rendered_count),
                     kind: Some(CodeActionKind::REFACTOR_REWRITE),
                     diagnostics: None,
-                    edit: Some(edit),  // Direct edit, no command
+                    edit: Some(edit), // Direct edit, no command
                     command: None,
                     is_preferred: Some(false),
                     disabled: None,
@@ -489,9 +512,13 @@ fn get_code_actions(
 
     if cursor_line < lines.len() {
         let line = lines[cursor_line].trim();
-        let is_on_comment = line.starts_with(MERMAID_SOURCE_COMMENT_PREFIX) && line.ends_with(MERMAID_SOURCE_COMMENT_SUFFIX);
+        let is_on_comment = line.starts_with(MERMAID_SOURCE_COMMENT_PREFIX)
+            && line.ends_with(MERMAID_SOURCE_COMMENT_SUFFIX);
 
-        debug!("Line {}: '{}' - is_comment: {}", cursor_line, line, is_on_comment);
+        debug!(
+            "Line {}: '{}' - is_comment: {}",
+            cursor_line, line, is_on_comment
+        );
 
         // Skip Edit Single for now - only support Edit All
         debug!("Cursor state checked, skipping Edit Single action");
@@ -530,6 +557,7 @@ fn is_mermaid_document(uri: &str) -> bool {
     uri.ends_with(".mmd") || uri.ends_with(".mermaid")
 }
 
+#[allow(dead_code)]
 fn locate_mermaid_source_block(
     content: &str,
     uri: &str,
@@ -598,15 +626,22 @@ fn locate_mermaid_source_block(
     })
 }
 
+#[allow(dead_code)]
 fn locate_rendered_mermaid_block(
     content: &str,
     uri: &str,
     cursor: &Position,
 ) -> Option<RenderedMermaidBlock> {
-    debug!("locate_rendered_mermaid_block ENTRY - content length: {}", content.len());
+    debug!(
+        "locate_rendered_mermaid_block ENTRY - content length: {}",
+        content.len()
+    );
 
     let lines: Vec<&str> = content.lines().collect();
-    debug!("locate_rendered_mermaid_block - parsed {} lines", lines.len());
+    debug!(
+        "locate_rendered_mermaid_block - parsed {} lines",
+        lines.len()
+    );
 
     if lines.is_empty() {
         debug!("locate_rendered_mermaid_block - EARLY RETURN: lines.is_empty()");
@@ -614,7 +649,11 @@ fn locate_rendered_mermaid_block(
     }
 
     let cursor_line = cursor.line.min((lines.len() - 1) as u32) as usize;
-    debug!("locate_rendered_mermaid_block - cursor at line {}, total lines: {}", cursor_line, lines.len());
+    debug!(
+        "locate_rendered_mermaid_block - cursor at line {}, total lines: {}",
+        cursor_line,
+        lines.len()
+    );
 
     debug!("=== locate_rendered_mermaid_block called ===");
     debug!("Cursor line: {}, total lines: {}", cursor_line, lines.len());
@@ -622,14 +661,18 @@ fn locate_rendered_mermaid_block(
     // Find comment with mermaid source file reference
     // Search BACKWARDS from cursor first (most common: cursor on image line after comment)
     // Then search forward if not found
-    debug!("Searching for mermaid comment near cursor line {}", cursor_line);
+    debug!(
+        "Searching for mermaid comment near cursor line {}",
+        cursor_line
+    );
 
     let source_line = {
         // First, search backwards from cursor (up to 10 lines)
         let search_start = cursor_line.saturating_sub(10);
         let backward_result = (search_start..=cursor_line).rev().find(|&i| {
             let line = lines[i].trim();
-            let is_comment = line.starts_with(MERMAID_SOURCE_COMMENT_PREFIX) && line.ends_with(MERMAID_SOURCE_COMMENT_SUFFIX);
+            let is_comment = line.starts_with(MERMAID_SOURCE_COMMENT_PREFIX)
+                && line.ends_with(MERMAID_SOURCE_COMMENT_SUFFIX);
             if is_comment {
                 debug!("Found mermaid comment (backward) at line {}: {}", i, line);
             }
@@ -643,7 +686,8 @@ fn locate_rendered_mermaid_block(
             let search_end = (cursor_line + 5).min(lines.len() - 1);
             let forward_result = (cursor_line..=search_end).find(|&i| {
                 let line = lines[i].trim();
-                let is_comment = line.starts_with(MERMAID_SOURCE_COMMENT_PREFIX) && line.ends_with(MERMAID_SOURCE_COMMENT_SUFFIX);
+                let is_comment = line.starts_with(MERMAID_SOURCE_COMMENT_PREFIX)
+                    && line.ends_with(MERMAID_SOURCE_COMMENT_SUFFIX);
                 if is_comment {
                     debug!("Found mermaid comment (forward) at line {}: {}", i, line);
                 }
@@ -695,7 +739,10 @@ fn locate_rendered_mermaid_block(
             content
         }
         Err(e) => {
-            debug!("Failed to read source file: {}, attempting to find recent file...", e);
+            debug!(
+                "Failed to read source file: {}, attempting to find recent file...",
+                e
+            );
             debug!("Error details: {:?}", e.kind());
 
             // Try to find the most recent matching file
@@ -732,8 +779,10 @@ fn locate_rendered_mermaid_block(
         source_line + 2
     };
 
-    debug!("Found rendered block - comment line {}, img line {}, end line {}", source_line, img_line, end_line);
-
+    debug!(
+        "Found rendered block - comment line {}, img line {}, end line {}",
+        source_line, img_line, end_line
+    );
 
     Some(RenderedMermaidBlock {
         code,
@@ -778,8 +827,12 @@ fn find_mermaid_fence(lines: &[&str], cursor_line: usize) -> Option<(usize, usiz
 
 /// Clean up old diagram files that are no longer referenced in the document
 /// Keeps cache files (.cache/*.svg) but removes unreferenced output files
+#[allow(dead_code)]
 fn cleanup_old_diagram_files(_uri: &str, content: &str, media_dir: &Path) -> Result<()> {
-    info!("=== CLEANUP: Cleaning up old diagram files in {:?}", media_dir);
+    info!(
+        "=== CLEANUP: Cleaning up old diagram files in {:?}",
+        media_dir
+    );
 
     // Find all currently referenced files in the document
     let mut referenced_files = std::collections::HashSet::new();
@@ -806,7 +859,10 @@ fn cleanup_old_diagram_files(_uri: &str, content: &str, media_dir: &Path) -> Res
         }
     }
 
-    info!("CLEANUP: Found {} referenced files in document", referenced_files.len());
+    info!(
+        "CLEANUP: Found {} referenced files in document",
+        referenced_files.len()
+    );
     for ref_file in &referenced_files {
         info!("CLEANUP: Referenced: {}", ref_file);
     }
@@ -834,8 +890,9 @@ fn cleanup_old_diagram_files(_uri: &str, content: &str, media_dir: &Path) -> Res
             let file_name = path.file_name().unwrap().to_string_lossy();
             let relative_path = format!("{}/{}", MERMAID_MEDIA_DIR, file_name);
 
-            if !referenced_files.contains(file_name.as_ref()) &&
-               !referenced_files.contains(&relative_path) {
+            if !referenced_files.contains(file_name.as_ref())
+                && !referenced_files.contains(&relative_path)
+            {
                 info!("CLEANUP: Removing unreferenced file: {:?}", path);
                 if let Err(e) = std::fs::remove_file(&path) {
                     warn!("CLEANUP: Failed to remove old file {:?}: {}", path, e);
@@ -885,7 +942,9 @@ fn create_render_edits(
                         }
                     }
                 } else {
-                    return Err(anyhow!("Path traversal attempt detected: path contains '..'"));
+                    return Err(anyhow!(
+                        "Path traversal attempt detected: path contains '..'"
+                    ));
                 }
             }
         }
@@ -914,8 +973,7 @@ fn create_render_edits(
     // Check if we have a cached version
     let svg_contents = if cache_path.exists() {
         debug!("Using cached SVG for hash {:x}", code_hash);
-        fs::read_to_string(&cache_path)
-            .map_err(|e| anyhow!("Failed to read cached SVG: {}", e))?
+        fs::read_to_string(&cache_path).map_err(|e| anyhow!("Failed to read cached SVG: {}", e))?
     } else {
         debug!("Rendering new SVG (cache miss) for hash {:x}", code_hash);
         let contents = render_mermaid(&block.code)?;
@@ -952,9 +1010,7 @@ fn create_render_edits(
     info!("Successfully wrote SVG file");
 
     let source_file_path = {
-        let base_name = path.file_stem()
-            .unwrap_or_default()
-            .to_string_lossy();
+        let base_name = path.file_stem().unwrap_or_default().to_string_lossy();
         let source_filename = format!("{}_{}{}", base_name, unique_id, MERMAID_FILE_EXTENSION);
         media_dir.join(source_filename)
     };
@@ -974,8 +1030,7 @@ fn create_render_edits(
 
     let mut new_text = format!(
         "{}{}{}\n\n![Mermaid Diagram]({})\n",
-        MERMAID_SOURCE_COMMENT_PREFIX, source_relative, MERMAID_SOURCE_COMMENT_SUFFIX,
-        svg_relative
+        MERMAID_SOURCE_COMMENT_PREFIX, source_relative, MERMAID_SOURCE_COMMENT_SUFFIX, svg_relative
     );
 
     debug!("Rendering with external source file");
@@ -1069,10 +1124,7 @@ fn count_rendered_blocks(content: &str) -> usize {
     count
 }
 
-fn edit_all_sources_content(
-    uri: &str,
-    content: &str,
-) -> Result<HashMap<Url, Vec<TextEdit>>> {
+fn edit_all_sources_content(uri: &str, content: &str) -> Result<HashMap<Url, Vec<TextEdit>>> {
     let lines: Vec<&str> = content.lines().collect();
     let mut all_edits: HashMap<Url, Vec<TextEdit>> = HashMap::new();
     let mut i = 0;
@@ -1083,21 +1135,27 @@ fn edit_all_sources_content(
         let line = lines[i].trim();
 
         // Look for mermaid source comment lines
-        if line.starts_with(MERMAID_SOURCE_COMMENT_PREFIX) && line.ends_with(MERMAID_SOURCE_COMMENT_SUFFIX) {
+        if line.starts_with(MERMAID_SOURCE_COMMENT_PREFIX)
+            && line.ends_with(MERMAID_SOURCE_COMMENT_SUFFIX)
+        {
             debug!("Found rendered block at line {}", i);
 
             // Find the end of the rendered block (next blank line or mermaid fence)
             let mut end = i + 1;
             while end < lines.len() {
                 let next_line = lines[end].trim();
-                if next_line.is_empty() || next_line.starts_with("```mermaid") || next_line.starts_with(MERMAID_SOURCE_COMMENT_PREFIX) {
+                if next_line.is_empty()
+                    || next_line.starts_with("```mermaid")
+                    || next_line.starts_with(MERMAID_SOURCE_COMMENT_PREFIX)
+                {
                     break;
                 }
                 end += 1;
             }
 
             // Extract the source file path from comment
-            let start_pos = line.find(MERMAID_SOURCE_COMMENT_PREFIX).unwrap() + MERMAID_SOURCE_COMMENT_PREFIX.len();
+            let start_pos = line.find(MERMAID_SOURCE_COMMENT_PREFIX).unwrap()
+                + MERMAID_SOURCE_COMMENT_PREFIX.len();
             let end_pos = line.len() - MERMAID_SOURCE_COMMENT_SUFFIX.len();
             let source_file = &line[start_pos..end_pos];
 
@@ -1134,7 +1192,11 @@ fn edit_all_sources_content(
                                     }
                                 }
                                 Err(e) => {
-                                    warn!("Failed to create source edits for line {}: {}", i + 1, e);
+                                    warn!(
+                                        "Failed to create source edits for line {}: {}",
+                                        i + 1,
+                                        e
+                                    );
                                 }
                             }
                         }
@@ -1148,7 +1210,10 @@ fn edit_all_sources_content(
         }
     }
 
-    debug!("Found {} sets of edits across all rendered blocks", all_edits.len());
+    debug!(
+        "Found {} sets of edits across all rendered blocks",
+        all_edits.len()
+    );
     Ok(all_edits)
 }
 
@@ -1159,14 +1224,14 @@ fn render_all_diagrams_content(
 ) -> Result<HashMap<Url, Vec<TextEdit>>> {
     let lines: Vec<&str> = content.lines().collect();
     let mut all_edits: HashMap<Url, Vec<TextEdit>> = HashMap::new();
-    let mut rendered_any = false;  // Track if we actually rendered anything
+    let mut rendered_any = false; // Track if we actually rendered anything
     let mut i = 0;
 
     while i < lines.len() {
         if let Some((start, end)) = find_mermaid_fence(&lines, i) {
             // Skip if already rendered
             if start == 0 || !lines[start - 1].starts_with(MERMAID_SOURCE_COMMENT_PREFIX) {
-                rendered_any = true;  // Mark that we're rendering something
+                rendered_any = true; // Mark that we're rendering something
                 let code = lines[start + 1..end].join("\n");
 
                 let block = MermaidSourceBlock {
@@ -1204,7 +1269,8 @@ fn render_all_diagrams_content(
                         }
                     }
                     Err(e) => {
-                        let error_msg = format!("Failed to render diagram at line {}: {}", start + 1, e);
+                        let error_msg =
+                            format!("Failed to render diagram at line {}: {}", start + 1, e);
                         error!("{}", error_msg);
                         if let Some(conn) = connection {
                             send_error_notification(conn, &error_msg);
@@ -1231,11 +1297,7 @@ fn render_all_diagrams_content(
     Ok(all_edits)
 }
 
-fn apply_workspace_edit(
-    connection: &Connection,
-    edit: WorkspaceEdit,
-    label: &str,
-) -> Result<()> {
+fn apply_workspace_edit(connection: &Connection, edit: WorkspaceEdit, label: &str) -> Result<()> {
     info!("Sending workspace/applyEdit request: {}", label);
 
     let params = ApplyWorkspaceEditParams {
@@ -1244,9 +1306,13 @@ fn apply_workspace_edit(
     };
 
     let request = Request::new(
-        RequestId::from(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_nanos() as i32),
+        RequestId::from(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_nanos() as i32,
+        ),
         "workspace/applyEdit".to_string(),
-        serde_json::to_value(params)?
+        serde_json::to_value(params)?,
     );
 
     connection.sender.send(Message::Request(request))?;
@@ -1265,7 +1331,8 @@ fn execute_command(
     match params.command.as_str() {
         "mermaid.renderAllLightweight" => {
             // Get URI from command arguments
-            let uri = params.arguments
+            let uri = params
+                .arguments
                 .first()
                 .and_then(|arg| arg.get("uri"))
                 .and_then(|v| v.as_str())
@@ -1290,7 +1357,8 @@ fn execute_command(
         }
         "mermaid.renderSingle" => {
             // Get parameters from command arguments
-            let args = params.arguments
+            let args = params
+                .arguments
                 .first()
                 .ok_or_else(|| anyhow::anyhow!("No arguments provided"))?;
 
@@ -1299,15 +1367,15 @@ fn execute_command(
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("Missing URI argument"))?;
 
-            let start_line = args
-                .get("startLine")
-                .and_then(|v| v.as_u64())
-                .ok_or_else(|| anyhow::anyhow!("Missing startLine"))? as u32;
+            let start_line =
+                args.get("startLine")
+                    .and_then(|v| v.as_u64())
+                    .ok_or_else(|| anyhow::anyhow!("Missing startLine"))? as u32;
 
-            let end_line = args
-                .get("endLine")
-                .and_then(|v| v.as_u64())
-                .ok_or_else(|| anyhow::anyhow!("Missing endLine"))? as u32;
+            let end_line =
+                args.get("endLine")
+                    .and_then(|v| v.as_u64())
+                    .ok_or_else(|| anyhow::anyhow!("Missing endLine"))? as u32;
 
             let code = args
                 .get("code")
@@ -1343,7 +1411,8 @@ fn execute_command(
             Ok(())
         }
         "mermaid.editSingleSource" => {
-            let args = params.arguments
+            let args = params
+                .arguments
                 .first()
                 .ok_or_else(|| anyhow::anyhow!("No arguments provided"))?;
 
@@ -1352,15 +1421,15 @@ fn execute_command(
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("Missing URI argument"))?;
 
-            let start_line = args
-                .get("startLine")
-                .and_then(|v| v.as_u64())
-                .ok_or_else(|| anyhow::anyhow!("Missing startLine"))? as u32;
+            let start_line =
+                args.get("startLine")
+                    .and_then(|v| v.as_u64())
+                    .ok_or_else(|| anyhow::anyhow!("Missing startLine"))? as u32;
 
-            let end_line = args
-                .get("endLine")
-                .and_then(|v| v.as_u64())
-                .ok_or_else(|| anyhow::anyhow!("Missing endLine"))? as u32;
+            let end_line =
+                args.get("endLine")
+                    .and_then(|v| v.as_u64())
+                    .ok_or_else(|| anyhow::anyhow!("Missing endLine"))? as u32;
 
             let code = args
                 .get("code")
@@ -1394,7 +1463,8 @@ fn execute_command(
             Ok(())
         }
         "mermaid.editAllSources" => {
-            let uri = params.arguments
+            let uri = params
+                .arguments
                 .first()
                 .and_then(|arg| arg.get("uri"))
                 .and_then(|v| v.as_str())

@@ -62,7 +62,7 @@ rsync -a --delete \
     --exclude 'target/' \
     --exclude 'install.sh' \
     --exclude 'build.sh' \
-    "$SCRIPT_DIR/" "$TARGET_DIR/"
+    "$SCRIPT_DIR/../" "$TARGET_DIR/"
 
 pushd "$TARGET_DIR" >/dev/null
 

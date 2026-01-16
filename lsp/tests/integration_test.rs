@@ -38,7 +38,11 @@ fn test_path_traversal_patterns() {
     ];
 
     for path in malicious_paths {
-        assert!(path.contains(".."), "Path should contain '..' pattern: {}", path);
+        assert!(
+            path.contains(".."),
+            "Path should contain '..' pattern: {}",
+            path
+        );
     }
 }
 
@@ -52,7 +56,11 @@ fn test_safe_paths() {
     ];
 
     for path in safe_paths {
-        assert!(!path.contains(".."), "Safe path should not contain '..': {}", path);
+        assert!(
+            !path.contains(".."),
+            "Safe path should not contain '..': {}",
+            path
+        );
     }
 }
 
@@ -76,7 +84,11 @@ fn test_file_extension_validation() {
             .unwrap_or_default();
 
         let is_valid = valid_extensions.contains(&ext.as_str());
-        assert_eq!(is_valid, should_be_valid, "File '{}' validation mismatch", filename);
+        assert_eq!(
+            is_valid, should_be_valid,
+            "File '{}' validation mismatch",
+            filename
+        );
     }
 }
 
@@ -125,7 +137,10 @@ sequenceDiagram
             fence_count += 1;
             // Verify closing fence exists
             let closing_fence = lines.iter().skip(i + 1).position(|l| l.trim() == "```");
-            assert!(closing_fence.is_some(), "Mermaid fence should have closing fence");
+            assert!(
+                closing_fence.is_some(),
+                "Mermaid fence should have closing fence"
+            );
         }
     }
 
@@ -156,8 +171,14 @@ fn test_svg_script_rejection() {
     let malicious_svg = r#"<svg><script>alert('xss')</script></svg>"#;
     let safe_svg = r#"<svg><rect width="100" height="100"/></svg>"#;
 
-    assert!(malicious_svg.contains("<script"), "Malicious SVG should contain script tag");
-    assert!(!safe_svg.contains("<script"), "Safe SVG should not contain script tag");
+    assert!(
+        malicious_svg.contains("<script"),
+        "Malicious SVG should contain script tag"
+    );
+    assert!(
+        !safe_svg.contains("<script"),
+        "Safe SVG should not contain script tag"
+    );
 }
 
 /// Test unique filename generation
@@ -170,7 +191,11 @@ fn test_unique_filename_generation() {
     // Generate multiple filenames with timestamp component
     for i in 0..100 {
         let filename = format!("diagram_{}_{}.svg", i, i);
-        assert!(filenames.insert(filename.clone()), "Filename should be unique: {}", filename);
+        assert!(
+            filenames.insert(filename.clone()),
+            "Filename should be unique: {}",
+            filename
+        );
     }
 
     assert_eq!(filenames.len(), 100, "Should generate 100 unique filenames");
@@ -201,12 +226,24 @@ fn test_foreign_object_regex_safety() {
     let pattern = r#"<foreignObject\s+[^>]+>([^<]+(?:<(?!/foreignObject>)[^<]*)*)</foreignObject>"#;
 
     // Verify pattern structure doesn't have dangerous patterns
-    assert!(!pattern.contains(".*?)*"), "Should not have nested greedy quantifiers");
-    assert!(!pattern.contains(".+)+"), "Should not have nested possessive quantifiers");
+    assert!(
+        !pattern.contains(".*?)*"),
+        "Should not have nested greedy quantifiers"
+    );
+    assert!(
+        !pattern.contains(".+)+"),
+        "Should not have nested possessive quantifiers"
+    );
 
     // The pattern uses [^<]+ and [^>]+ which are safe because they're negated character classes
-    assert!(pattern.contains("[^<]"), "Should use negated character classes");
-    assert!(pattern.contains("[^>]"), "Should use negated character classes");
+    assert!(
+        pattern.contains("[^<]"),
+        "Should use negated character classes"
+    );
+    assert!(
+        pattern.contains("[^>]"),
+        "Should use negated character classes"
+    );
 }
 
 /// Test cleanup file detection

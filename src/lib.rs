@@ -56,18 +56,17 @@ impl MermaidPreviewExtension {
         // First, ensure Mermaid CLI is available
         if let Err(e) = self.ensure_mermaid_cli() {
             eprintln!("⚠️  Warning: Failed to ensure Mermaid CLI: {}", e);
-            eprintln!("Diagram rendering may fail until @mermaid-js/mermaid-cli is installed manually");
+            eprintln!(
+                "Diagram rendering may fail until @mermaid-js/mermaid-cli is installed manually"
+            );
         }
 
-        // Create a dummy language_server_id for initialization
-        let dummy_id = LanguageServerId::from("mermaid");
-
         // Use current directory as extension directory
-        let current_dir = env::current_dir()
-            .map_err(|e| format!("Failed to get current directory: {}", e))?;
+        let current_dir =
+            env::current_dir().map_err(|e| format!("Failed to get current directory: {}", e))?;
 
-        // Try to find or download the binary
-        match self.get_lsp_path_impl(&dummy_id, &current_dir) {
+        // Try to find the binary (without LanguageServerId, we skip status updates)
+        match self.find_lsp_binary(&current_dir) {
             Ok(path) => {
                 eprintln!("✅ Mermaid LSP binary initialized: {}", path);
                 self.lsp_path = Some(path);
@@ -80,6 +79,51 @@ impl MermaidPreviewExtension {
         }
     }
 
+    fn find_lsp_binary(&mut self, extension_dir: &Path) -> Result<String> {
+        eprintln!(
+            "=== find_lsp_binary called for directory: {} ===",
+            extension_dir.display()
+        );
+
+        if let Ok(path) = env::var("MERMAID_LSP_PATH") {
+            let candidate = PathBuf::from(&path);
+            if candidate.is_file() {
+                eprintln!("✅ MERMAID_LSP_PATH is set and valid: {}", path);
+                return Self::finalize_path_simple(candidate, &mut self.lsp_path);
+            }
+        }
+
+        if let Ok(output) = Command::new("which").arg("mermaid-lsp").output() {
+            if output.status.success() {
+                let path_string = String::from_utf8_lossy(&output.stdout);
+                let path_str = path_string.trim();
+                return Self::finalize_path_simple(PathBuf::from(path_str), &mut self.lsp_path);
+            }
+        }
+
+        let lsp_binary_name = Self::lsp_binary_name();
+
+        if let Some(path) = Self::candidate_paths(extension_dir, lsp_binary_name)
+            .into_iter()
+            .find(|candidate| candidate.is_file())
+        {
+            eprintln!("✅ Found bundled LSP binary: {}", path.display());
+            return Self::finalize_path_simple(path, &mut self.lsp_path);
+        }
+
+        Err("LSP binary not found during initialization".to_string())
+    }
+
+    fn finalize_path_simple(path: PathBuf, cache: &mut Option<String>) -> Result<String> {
+        let resolved = path
+            .canonicalize()
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
+        *cache = Some(resolved.clone());
+        Ok(resolved)
+    }
+
     /// Ensure Mermaid CLI is available, attempt to install if missing
     fn ensure_mermaid_cli(&self) -> Result<()> {
         eprintln!("=== Checking Mermaid CLI availability ===");
@@ -87,7 +131,8 @@ impl MermaidPreviewExtension {
         // Check if mmdc is already available
         if let Ok(path) = Command::new("which").arg("mmdc").output() {
             if path.status.success() {
-                let path_str = String::from_utf8_lossy(&path.stdout).trim();
+                let path_string = String::from_utf8_lossy(&path.stdout);
+                let path_str = path_string.trim();
                 eprintln!("✅ Mermaid CLI found at: {}", path_str);
                 return Ok(());
             }
@@ -97,10 +142,16 @@ impl MermaidPreviewExtension {
         if let Ok(custom_path) = env::var("MERMAID_CLI_PATH") {
             let path = PathBuf::from(&custom_path);
             if path.is_file() {
-                eprintln!("✅ Mermaid CLI found via MERMAID_CLI_PATH: {}", path.display());
+                eprintln!(
+                    "✅ Mermaid CLI found via MERMAID_CLI_PATH: {}",
+                    path.display()
+                );
                 return Ok(());
             } else {
-                eprintln!("❌ MERMAID_CLI_PATH points to non-existent file: {}", path.display());
+                eprintln!(
+                    "❌ MERMAID_CLI_PATH points to non-existent file: {}",
+                    path.display()
+                );
             }
         }
 
@@ -127,7 +178,8 @@ impl MermaidPreviewExtension {
         // Check if npm is available
         if let Ok(output) = Command::new("which").arg("npm").output() {
             if output.status.success() {
-                let npm_path = String::from_utf8_lossy(&output.stdout).trim();
+                let npm_string = String::from_utf8_lossy(&output.stdout);
+                let npm_path = npm_string.trim();
                 eprintln!("Found npm at: {}", npm_path);
             } else {
                 return Err("npm not found. Please install Node.js and npm first.".to_string());
@@ -166,8 +218,7 @@ impl MermaidPreviewExtension {
         }
 
         // Otherwise, try to get it now (fallback for first file open)
-        let worktree_path = worktree.path()
-            .map_err(|e| format!("Failed to get worktree path: {}", e))?;
+        let worktree_path = PathBuf::from(worktree.root_path());
         self.get_lsp_path_impl(language_server_id, &worktree_path)
     }
 
@@ -177,7 +228,10 @@ impl MermaidPreviewExtension {
         extension_dir: &Path,
     ) -> Result<String> {
         // Check for explicit local development path first
-        eprintln!("=== get_lsp_path_impl called for directory: {} ===", extension_dir.display());
+        eprintln!(
+            "=== get_lsp_path_impl called for directory: {} ===",
+            extension_dir.display()
+        );
         match env::var("MERMAID_LSP_PATH") {
             Ok(path) => {
                 eprintln!("✅ MERMAID_LSP_PATH is set: {}", path);
@@ -197,7 +251,8 @@ impl MermaidPreviewExtension {
         // For development, check local PATH before GitHub releases
         if let Ok(output) = Command::new("which").arg("mermaid-lsp").output() {
             if output.status.success() {
-                let path_str = String::from_utf8_lossy(&output.stdout).trim();
+                let path_string = String::from_utf8_lossy(&output.stdout);
+                let path_str = path_string.trim();
                 return Self::finalize_path(
                     language_server_id,
                     PathBuf::from(path_str),
@@ -240,7 +295,6 @@ impl MermaidPreviewExtension {
             _ => {}
         }
 
-  
         let search_locations = Self::candidate_paths(&extension_dir, lsp_binary_name)
             .into_iter()
             .map(|candidate| candidate.display().to_string())
@@ -333,20 +387,30 @@ impl MermaidPreviewExtension {
             {
                 Ok(output) => {
                     if output.status.success() {
-                        let version = String::from_utf8_lossy(&output.stdout).trim();
-                        eprintln!("✅ Using existing LSP version: {} ({})", release.version, version);
+                        let version_string = String::from_utf8_lossy(&output.stdout);
+                        let version = version_string.trim();
+                        eprintln!(
+                            "✅ Using existing LSP version: {} ({})",
+                            release.version, version
+                        );
                         zed::set_language_server_installation_status(
                             language_server_id,
                             &zed::LanguageServerInstallationStatus::None,
                         );
                         return Ok(binary_path);
                     } else {
-                        eprintln!("⚠️  Existing binary is broken, re-downloading version: {}", release.version);
+                        eprintln!(
+                            "⚠️  Existing binary is broken, re-downloading version: {}",
+                            release.version
+                        );
                         // Continue to re-download
                     }
                 }
                 Err(e) => {
-                    eprintln!("⚠️  Failed to test existing binary ({}), re-downloading: {}", e, release.version);
+                    eprintln!(
+                        "⚠️  Failed to test existing binary ({}), re-downloading: {}",
+                        e, release.version
+                    );
                     // Continue to re-download
                 }
             }
@@ -358,7 +422,7 @@ impl MermaidPreviewExtension {
         fs::create_dir_all(&version_dir)
             .map_err(|err| format!("failed to create cache directory '{version_dir:?}': {err}"))?;
 
-        eprintln!("⬇️  Starting download of {} ({:.1}MB)...", asset.name, asset.size as f64 / 1024.0 / 1024.0);
+        eprintln!("⬇️  Starting download of {}...", asset.name);
         zed::set_language_server_installation_status(
             language_server_id,
             &zed::LanguageServerInstallationStatus::Downloading,
@@ -375,7 +439,10 @@ impl MermaidPreviewExtension {
         .map_err(|err| format!("failed to download mermaid-lsp asset: {err}"))?;
 
         let download_duration = start_time.elapsed();
-        eprintln!("✅ Download completed in {:.1}s", download_duration.as_secs_f64());
+        eprintln!(
+            "✅ Download completed in {:.1}s",
+            download_duration.as_secs_f64()
+        );
 
         if !binary_path.is_file() {
             let error_msg = format!(
@@ -403,7 +470,10 @@ impl MermaidPreviewExtension {
         eprintln!("🧹 Cleaning up old cache versions...");
         Self::purge_old_cache_versions(extension_dir, &release.version);
 
-        eprintln!("🎉 Mermaid LSP v{} successfully installed!", release.version);
+        eprintln!(
+            "🎉 Mermaid LSP v{} successfully installed!",
+            release.version
+        );
         eprintln!("📍 Binary location: {}", binary_path.display());
 
         Ok(binary_path)
