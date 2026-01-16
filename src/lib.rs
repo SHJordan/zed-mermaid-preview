@@ -15,19 +15,17 @@ struct MermaidPreviewExtension {
 }
 
 impl MermaidPreviewExtension {
-    fn lsp_binary_name() -> &'static str {
-        if cfg!(target_os = "windows") {
-            "mermaid-lsp.exe"
-        } else {
-            "mermaid-lsp"
+    fn lsp_binary_name(os: Os) -> &'static str {
+        match os {
+            Os::Windows => "mermaid-lsp.exe",
+            _ => "mermaid-lsp",
         }
     }
 
-    fn find_in_path(binary_name: &str) -> Option<PathBuf> {
-        let command = if cfg!(target_os = "windows") {
-            "where"
-        } else {
-            "which"
+    fn find_in_path(os: Os, binary_name: &str) -> Option<PathBuf> {
+        let command = match os {
+            Os::Windows => "where",
+            _ => "which",
         };
 
         if let Ok(output) = Command::new(command).arg(binary_name).output() {
@@ -88,8 +86,11 @@ impl MermaidPreviewExtension {
         Ok(resolved)
     }
 
-    fn match_asset(release: &zed::GithubRelease) -> Result<zed::GithubReleaseAsset> {
-        let (os, arch) = zed::current_platform();
+    fn match_asset(
+        os: Os,
+        arch: Architecture,
+        release: &zed::GithubRelease,
+    ) -> Result<zed::GithubReleaseAsset> {
         let arch_str = match arch {
             Architecture::Aarch64 => "aarch64",
             Architecture::X86 => "x86",
@@ -119,6 +120,8 @@ impl MermaidPreviewExtension {
     fn download_lsp(
         &mut self,
         language_server_id: &LanguageServerId,
+        os: Os,
+        arch: Architecture,
         binary_name: &str,
     ) -> Result<PathBuf> {
         zed::set_language_server_installation_status(
@@ -134,9 +137,8 @@ impl MermaidPreviewExtension {
             },
         )?;
 
-        let asset = Self::match_asset(&release)?;
+        let asset = Self::match_asset(os, arch, &release)?;
 
-        // Use current directory for cache (this is the extension's work directory)
         let work_dir =
             env::current_dir().map_err(|e| format!("failed to get current directory: {e}"))?;
         let version_dir = work_dir.join(CACHE_ROOT).join(&release.version);
@@ -187,6 +189,8 @@ impl MermaidPreviewExtension {
             return Ok(path.clone());
         }
 
+        let (os, arch) = zed::current_platform();
+
         if let Ok(path) = env::var("MERMAID_LSP_PATH") {
             let candidate = PathBuf::from(&path);
             if candidate.is_file() {
@@ -194,9 +198,9 @@ impl MermaidPreviewExtension {
             }
         }
 
-        let lsp_binary_name = Self::lsp_binary_name();
+        let lsp_binary_name = Self::lsp_binary_name(os);
 
-        if let Some(path) = Self::find_in_path(lsp_binary_name) {
+        if let Some(path) = Self::find_in_path(os, lsp_binary_name) {
             return Self::finalize_path(language_server_id, path, &mut self.lsp_path);
         }
 
@@ -207,11 +211,17 @@ impl MermaidPreviewExtension {
             return Self::finalize_path(language_server_id, path, &mut self.lsp_path);
         }
 
-        match self.download_lsp(language_server_id, lsp_binary_name) {
-            Ok(downloaded) if downloaded.is_file() => {
-                Self::finalize_path(language_server_id, downloaded, &mut self.lsp_path)
+        match self.download_lsp(language_server_id, os, arch, lsp_binary_name) {
+            Ok(downloaded) => {
+                if downloaded.is_file() {
+                    Self::finalize_path(language_server_id, downloaded, &mut self.lsp_path)
+                } else {
+                    Err(format!(
+                        "Downloaded file is not a valid binary: {}",
+                        downloaded.display()
+                    ))
+                }
             }
-            Ok(_) => Err("Downloaded file is not a valid binary".to_string()),
             Err(e) => Err(format!("Failed to download or find LSP: {e}")),
         }
     }
