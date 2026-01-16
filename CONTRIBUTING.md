@@ -12,6 +12,7 @@ Thank you for your interest in contributing! This guide will help you set up you
 
 ### Initial Setup
 
+#### macOS / Linux
 1. **Clone the repository**
    ```bash
    git clone https://github.com/dawsh2/zed-mermaid-preview.git
@@ -23,13 +24,31 @@ Thank you for your interest in contributing! This guide will help you set up you
    ./scripts/dev-setup.sh
    ```
 
-   This configures `MERMAID_LSP_PATH` in your shell so Zed uses your local builds instead of downloading from GitHub.
+   This configures `MERMAID_LSP_PATH` in your shell so Zed uses your local builds instead of installing from NPM.
 
 3. **Restart your terminal** to pick up the environment variable
 
 4. **Build the extension**
    ```bash
    ./scripts/build.sh
+   ```
+
+#### Windows (PowerShell)
+1. **Clone the repository**
+   ```powershell
+   git clone https://github.com/dawsh2/zed-mermaid-preview.git
+   cd zed-mermaid-preview
+   ```
+
+2. **Set development environment variable**
+   Add this to your PowerShell profile (usually `$HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1`):
+   ```powershell
+   $env:MERMAID_LSP_PATH = "C:\path\to\your\zed-mermaid-preview\target\release\mermaid-lsp.exe"
+   ```
+
+3. **Build the extension**
+   ```powershell
+   .\scripts\build.ps1
    ```
 
 5. **Install as development extension in Zed**
@@ -128,10 +147,7 @@ cd lsp && cargo build --release
 
 ### Why MERMAID_LSP_PATH?
 
-Without the env var, Zed uses the cached binary downloaded from GitHub releases:
-```
-~/Library/Application Support/Zed/extensions/work/mermaid-preview/mermaid-lsp-cache/v0.1.24/mermaid-lsp
-```
+Without the env var, Zed will attempt to dynamically install the LSP from NPM.
 
 With `MERMAID_LSP_PATH` set, Zed uses your local build:
 ```

@@ -5,7 +5,7 @@ Render Mermaid diagrams as SVG images directly in your Markdown files.
 
 ## Features
 
-- ⚡ **Zero-config install** - Auto-downloads versioned LSP binary on first use
+- ⚡ **Zero-config install** - Auto-downloads LSP on first use
 - 🎨 **Clean preview** - Shows only rendered diagrams, no source code in preview
 - 📝 **Editable source** - Source saved to separate `.mmd` files for easy editing
 - 🔒 **Secure** - SVG output sanitized, files written only to project directory
@@ -28,10 +28,19 @@ Render Mermaid diagrams as SVG images directly in your Markdown files.
 5. Select it
 
 ### Option 2: Manual Installation
+#### macOS / Linux
 ```bash
 git clone https://github.com/dawsh2/zed-mermaid-preview.git
 cd zed-mermaid-preview
 ./scripts/build.sh && ./scripts/install.sh
+```
+
+#### Windows (PowerShell)
+```powershell
+git clone https://github.com/dawsh2/zed-mermaid-preview.git
+cd zed-mermaid-preview
+.\scripts\build.ps1
+.\scripts\install.ps1
 ```
 
 Restart Zed to load the extension.
@@ -75,14 +84,12 @@ See [`example.md`](example.md) for various diagram types and complexity levels.
 ## How It Works
 
 **Production (End Users):**
-- Extension auto-downloads versioned LSP binary from GitHub releases on first use
-- Binary cached at `~/.../Zed/extensions/work/mermaid-preview/mermaid-lsp-cache/v0.1.24/`
-- Updates download to new versioned folders automatically
+- Extension auto-downloads the LSP from NPM on first use
 - No manual setup required!
 
 **Development (Contributors):**
 - LSP binary NOT in git (excluded via `.gitignore` to keep repo clean)
-- You build locally and point extension to your build
+- You build locally and point extension to your build using `MERMAID_LSP_PATH`
 
 ## Development
 
@@ -103,6 +110,7 @@ cd zed-mermaid-preview
 ```
 
 ### Workflow
+#### macOS / Linux
 ```bash
 # Make changes to LSP code
 vim lsp/src/render.rs
@@ -111,16 +119,18 @@ vim lsp/src/render.rs
 cd lsp && cargo build --release
 
 # Restart Zed to load changes
-# Your local build is now active!
-
-# Run tests
-cargo test
 ```
 
-### Without MERMAID_LSP_PATH
-If you don't set the env var, Zed will use the cached download from GitHub. You'll need to manually copy after each build:
-```bash
-cp target/release/mermaid-lsp ~/Library/Application\ Support/Zed/extensions/work/mermaid-preview/mermaid-lsp-cache/v0.1.24/
+#### Windows (PowerShell)
+```powershell
+# Rebuild
+cd lsp
+cargo build --release
+
+# Set environment variable for Zed (or in your profile)
+$env:MERMAID_LSP_PATH = "$(Get-Location)\..\target\release\mermaid-lsp.exe"
+
+# Restart Zed
 ```
 
 ### Release Process
