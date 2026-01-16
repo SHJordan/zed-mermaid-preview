@@ -84,7 +84,9 @@ See [`example.md`](example.md) for various diagram types and complexity levels.
 ## How It Works
 
 **Production (End Users):**
-- Extension auto-downloads the LSP from NPM on first use
+- Extension auto-downloads versioned LSP binary from GitHub releases on first use
+- Binary cached at `~/.../Zed/extensions/work/mermaid-preview/mermaid-lsp-cache/<version>/`
+- Updates download to new versioned folders automatically
 - No manual setup required!
 
 **Development (Contributors):**

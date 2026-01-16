@@ -24,7 +24,7 @@ Thank you for your interest in contributing! This guide will help you set up you
    ./scripts/dev-setup.sh
    ```
 
-   This configures `MERMAID_LSP_PATH` in your shell so Zed uses your local builds instead of installing from NPM.
+   This configures `MERMAID_LSP_PATH` in your shell so Zed uses your local builds instead of downloading from GitHub.
 
 3. **Restart your terminal** to pick up the environment variable
 
@@ -147,7 +147,7 @@ cd lsp && cargo build --release
 
 ### Why MERMAID_LSP_PATH?
 
-Without the env var, Zed will attempt to dynamically install the LSP from NPM.
+Without the env var, Zed will attempt to download the LSP from GitHub releases.
 
 With `MERMAID_LSP_PATH` set, Zed uses your local build:
 ```
