@@ -34,3 +34,6 @@ test_*.mmd
 *.mmd
 *.svg
 .code/
+
+# Node.js
+node_modules/
