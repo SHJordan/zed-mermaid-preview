@@ -9,6 +9,9 @@ repository = "https://github.com/dawsh2/zed-mermaid-preview"
 [compatibility]
 zed = "0.210.0"
 
+[capabilities]
+npm_install = true
+
 # Language server for Mermaid rendering
 [language_servers.mermaid]
 name = "Mermaid LSP"
