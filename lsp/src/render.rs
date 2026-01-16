@@ -296,7 +296,7 @@ mod tests {
     }
 
     #[test]
-    fn centers_text_correctly_in_foreignObject() {
+    fn centers_text_correctly_in_foreign_object() {
         let svg = r#"<svg width="200" height="100"><foreignObject x="20" y="30" width="160" height="40"><div><p>Test Label</p></div></foreignObject></svg>"#;
         let sanitized = sanitize_svg(svg).unwrap();
         // Should be positioned at center (20 + 160/2 = 100, 30 + 40/2 = 50)
@@ -306,7 +306,7 @@ mod tests {
     }
 
     #[test]
-    fn skips_empty_foreignObjects() {
+    fn skips_empty_foreign_objects() {
         let svg = r#"<svg width="100" height="50"><foreignObject x="0" y="0" width="0" height="0"><div></div></foreignObject></svg>"#;
         let sanitized = sanitize_svg(svg).unwrap();
         // Should remove empty foreignObject entirely
