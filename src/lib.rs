@@ -56,10 +56,12 @@ impl MermaidPreviewExtension {
             candidates.push(extension_dir.join("lsp/target/release").join(binary_name));
         }
 
-        let cache_root = extension_dir.join(CACHE_ROOT);
-        if let Ok(entries) = fs::read_dir(cache_root) {
-            for entry in entries.flatten() {
-                candidates.push(entry.path().join(binary_name));
+        if let Ok(current_dir) = env::current_dir() {
+            let cache_root = current_dir.join(CACHE_ROOT);
+            if let Ok(entries) = fs::read_dir(cache_root) {
+                for entry in entries.flatten() {
+                    candidates.push(entry.path().join(binary_name));
+                }
             }
         }
 
@@ -117,7 +119,6 @@ impl MermaidPreviewExtension {
     fn download_lsp(
         &mut self,
         language_server_id: &LanguageServerId,
-        extension_dir: &Path,
         binary_name: &str,
     ) -> Result<PathBuf> {
         zed::set_language_server_installation_status(
@@ -134,7 +135,11 @@ impl MermaidPreviewExtension {
         )?;
 
         let asset = Self::match_asset(&release)?;
-        let version_dir = extension_dir.join(CACHE_ROOT).join(&release.version);
+
+        // Use current directory for cache (this is the extension's work directory)
+        let work_dir =
+            env::current_dir().map_err(|e| format!("failed to get current directory: {e}"))?;
+        let version_dir = work_dir.join(CACHE_ROOT).join(&release.version);
         let binary_path = version_dir.join(binary_name);
 
         if binary_path.is_file() {
@@ -142,7 +147,7 @@ impl MermaidPreviewExtension {
         }
 
         fs::create_dir_all(&version_dir)
-            .map_err(|err| format!("failed to create cache directory: {err}"))?;
+            .map_err(|err| format!("failed to create cache directory '{version_dir:?}': {err}"))?;
 
         zed::set_language_server_installation_status(
             language_server_id,
@@ -158,7 +163,7 @@ impl MermaidPreviewExtension {
 
         zed::make_file_executable(&binary_path.to_string_lossy())?;
 
-        let cache_root = extension_dir.join(CACHE_ROOT);
+        let cache_root = work_dir.join(CACHE_ROOT);
         if let Ok(entries) = fs::read_dir(&cache_root) {
             for entry in entries.flatten() {
                 let path = entry.path();
@@ -202,7 +207,7 @@ impl MermaidPreviewExtension {
             return Self::finalize_path(language_server_id, path, &mut self.lsp_path);
         }
 
-        match self.download_lsp(language_server_id, extension_dir, lsp_binary_name) {
+        match self.download_lsp(language_server_id, lsp_binary_name) {
             Ok(downloaded) if downloaded.is_file() => {
                 Self::finalize_path(language_server_id, downloaded, &mut self.lsp_path)
             }
