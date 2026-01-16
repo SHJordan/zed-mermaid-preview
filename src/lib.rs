@@ -72,12 +72,6 @@ impl MermaidPreviewExtension {
                 Ok(())
             }
             None => {
-                eprintln!("LSP binary not pre-initialized; will resolve on first use via get_lsp_path");
-                Ok(())
-            }
-        }
-            None => {
-                // Non-fatal: get_lsp_path() will handle this with worktree later
                 eprintln!(
                     "LSP binary not pre-initialized; will resolve on first use via get_lsp_path"
                 );
