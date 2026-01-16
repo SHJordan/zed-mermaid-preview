@@ -61,20 +61,27 @@ impl MermaidPreviewExtension {
             );
         }
 
-        // Use current directory as extension directory
-        let current_dir =
-            env::current_dir().map_err(|e| format!("Failed to get current directory: {}", e))?;
+        let path_result = env::current_dir()
+            .ok()
+            .and_then(|current_dir| self.find_lsp_binary(&current_dir).ok());
 
-        // Try to find the binary (without LanguageServerId, we skip status updates)
-        match self.find_lsp_binary(&current_dir) {
-            Ok(path) => {
-                eprintln!("✅ Mermaid LSP binary initialized: {}", path);
+        match path_result {
+            Some(path) => {
+                eprintln!("✅ Mermaid LSP binary pre-initialized: {}", path);
                 self.lsp_path = Some(path);
                 Ok(())
             }
-            Err(e) => {
-                eprintln!("❌ Failed to initialize LSP binary: {}", e);
-                Err(e)
+            None => {
+                eprintln!("LSP binary not pre-initialized; will resolve on first use via get_lsp_path");
+                Ok(())
+            }
+        }
+            None => {
+                // Non-fatal: get_lsp_path() will handle this with worktree later
+                eprintln!(
+                    "LSP binary not pre-initialized; will resolve on first use via get_lsp_path"
+                );
+                Ok(())
             }
         }
     }
@@ -93,12 +100,8 @@ impl MermaidPreviewExtension {
             }
         }
 
-        if let Ok(output) = Command::new("which").arg("mermaid-lsp").output() {
-            if output.status.success() {
-                let path_string = String::from_utf8_lossy(&output.stdout);
-                let path_str = path_string.trim();
-                return Self::finalize_path_simple(PathBuf::from(path_str), &mut self.lsp_path);
-            }
+        if let Some(path) = Self::find_in_path(Self::lsp_binary_name()) {
+            return Self::finalize_path_simple(path, &mut self.lsp_path);
         }
 
         let lsp_binary_name = Self::lsp_binary_name();
@@ -112,6 +115,28 @@ impl MermaidPreviewExtension {
         }
 
         Err("LSP binary not found during initialization".to_string())
+    }
+
+    fn find_in_path(binary_name: &str) -> Option<PathBuf> {
+        let command = if cfg!(target_os = "windows") {
+            "where"
+        } else {
+            "which"
+        };
+
+        if let Ok(output) = Command::new(command).arg(binary_name).output() {
+            if output.status.success() {
+                let path_string = String::from_utf8_lossy(&output.stdout);
+                // On Windows, 'where' might return multiple lines. We just take the first one.
+                if let Some(first_line) = path_string.lines().next() {
+                    let path_str = first_line.trim();
+                    if !path_str.is_empty() {
+                        return Some(PathBuf::from(path_str));
+                    }
+                }
+            }
+        }
+        None
     }
 
     fn finalize_path_simple(path: PathBuf, cache: &mut Option<String>) -> Result<String> {

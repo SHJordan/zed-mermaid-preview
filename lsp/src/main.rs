@@ -9,7 +9,7 @@ use std::{
     collections::HashMap,
     fs,
     path::Path,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::atomic::{AtomicI32, AtomicUsize, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
 use url::Url;
@@ -30,6 +30,7 @@ const MERMAID_FENCE_START: &str = "```mermaid";
 const MERMAID_FENCE_END: &str = "```";
 
 static SVG_COUNTER: AtomicUsize = AtomicUsize::new(0);
+static REQUEST_ID_COUNTER: AtomicI32 = AtomicI32::new(1);
 
 /// Send an error notification to the LSP client
 fn send_error_notification(connection: &Connection, message: &str) {
@@ -1306,11 +1307,7 @@ fn apply_workspace_edit(connection: &Connection, edit: WorkspaceEdit, label: &st
     };
 
     let request = Request::new(
-        RequestId::from(
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)?
-                .as_nanos() as i32,
-        ),
+        RequestId::from(REQUEST_ID_COUNTER.fetch_add(1, Ordering::Relaxed)),
         "workspace/applyEdit".to_string(),
         serde_json::to_value(params)?,
     );
